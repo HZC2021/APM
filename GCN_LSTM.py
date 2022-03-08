@@ -120,18 +120,18 @@ class CustomLSTMCell(DropoutRNNCellMixin, Layer):
     self.state_size = [self.units, self.units, self.units, self.units]
     self.output_size = self.units
     self.feature = feature
-    self.gcn_regularizer = regularizers.get(kernel_regularizer)
-    self.dense_regularizer = regularizers.get(kernel_regularizer)
-    self.gcnoutput = 16
-    self.gc = gcn_conv.GCNConv(
-            self.feature,  kernel_regularizer=self.gcn_regularizer, use_bias=use_bias
-        )
-    self._den0 = tf.keras.layers.Dense(self.gcnoutput, activation=self.activation, kernel_regularizer=self.dense_regularizer)
+    # self.gcn_regularizer = regularizers.get(kernel_regularizer)
+    # self.dense_regularizer = regularizers.get(kernel_regularizer)
+    # self.gcnoutput = 16
+    # self.gc = gcn_conv.GCNConv(
+    #         self.feature,  kernel_regularizer=self.gcn_regularizer, use_bias=use_bias
+    #     )
+    # self._den0 = tf.keras.layers.Dense(self.gcnoutput, activation=self.activation, kernel_regularizer=self.dense_regularizer)
   @tf_utils.shape_type_conversion
   def build(self, input_shape):
     default_caching_device = _caching_device(self)
-    # input_dim = input_shape[-1]
-    input_dim = self.gcnoutput
+    inputfeature = input_shape[-1]
+    input_dim = self.feature
     self.kernel = self.add_weight(
         shape=(input_dim, self.units * 4),
         name='kernel',
@@ -146,7 +146,13 @@ class CustomLSTMCell(DropoutRNNCellMixin, Layer):
         regularizer=self.recurrent_regularizer,
         constraint=self.recurrent_constraint,
         caching_device=default_caching_device)
-
+    self.w = self.add_weight(
+        shape=(inputfeature, self.feature),
+        name='gcn_kernel',
+        initializer=self.recurrent_initializer,
+        regularizer=self.recurrent_regularizer,
+        constraint=self.recurrent_constraint,
+        caching_device=default_caching_device)
     if self.use_bias:
       if self.unit_forget_bias:
 
@@ -198,14 +204,15 @@ class CustomLSTMCell(DropoutRNNCellMixin, Layer):
   def call(self, inputs, states, training=None):
     # x1, a1 = inputs
     # print(inputs.shape)
-    a1 = inputs[:,:, 0:inputs.shape[-2]]    ##retrive adjcency matrix from input
-    x1 = inputs[:,:, inputs.shape[-2]:]
+    # a1 = inputs[:,:, 0:inputs.shape[-2]]    ##retrive adjcency matrix from input
+    # x1 = inputs[:,:, inputs.shape[-2]:]
     # print(x1.shape)
-    gcnout = self.gc([x1, a1])
-
-    gcnout = tf.keras.layers.Flatten()(gcnout)
-    gcnout = self._den0(gcnout)
+    # gcnout = self.gc([x1, a1])
+    #
+    # gcnout = tf.keras.layers.Flatten()(gcnout)
+    # gcnout = self._den0(gcnout)
     # print(gcnout.shape)
+    gcnout = backend.dot(inputs, self.w)
     h_tm1 = states[0]  # previous memory state
     c_tm1 = states[1]  # previous carry state
 
